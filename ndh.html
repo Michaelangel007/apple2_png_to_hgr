@@ -1,0 +1,105 @@
+<html>
+    <head>
+        <script>
+/*
+Convert a PNG into raw HGR bytes.
+Copyleft 2018 Michaelangel007
+
+    Shell Python 3:
+        python -m http.server 8000
+
+    Shell Python 2:
+        python -m SimpleHTTPServer
+
+    Web Browser:
+        http://localhost:8000/pic2hgr.html
+*/
+function main()
+{
+    var canvas  = document.getElementById( 'canvas' );
+    var context = canvas.getContext( '2d' );
+
+    var w = canvas.width;
+    var h = canvas.height;
+
+    var pic = new Image();
+    pic.onload = function()
+    {
+                     context.drawImage( pic, 0, 0 );
+        var data   = context.getImageData( 0, 0, w, h );
+        var texels = data.data;
+
+        var addr;
+        var byte   = 0;
+        var bit    = 1;
+        var line   = "";
+        var text   = "";
+        var cr     = 0;
+        var phase  = 0;
+        var hi     = 0;
+
+// "Mr. Robot" -> "Mr. Crack"
+// X=$00 .. $0D (14 bytes)
+        var y0 = 0;
+        var y1 = 44;
+
+        console.log( "image.size = " + texels.length );
+        console.log( "image.w = " + pic.width );
+        console.log( "image.h = " + pic.height );
+
+        for( var y = y0; y < y1; y++ )
+        {
+            addr  = 0x2000 + ((y/64)&63)*0x28 + (y%8)*0x400 + ((y/8)&7)*0x80;
+            line  = addr.toString( 16 ) + ":";
+            cr    = 0;
+            phase = 0;
+
+            for( var x = 0; x < 280; x++ )
+            {
+                j = (y*w + x)*4;
+                r = texels[ j + 0 ];
+                g = texels[ j + 1 ];
+                b = texels[ j + 2 ];
+
+                if( b >= 220 )
+                    byte |= bit;
+
+                bit <<= 1;
+                bit &= 0x7F;
+
+                if( !bit ) // over-flow to next byte?
+                {
+                    //hi   = ((g > 232) && (b < g) && (r < g)) ? 0 : 0x80;
+                    hi = 0x80; // blue
+                    // hi = 0x00; // green
+
+                    line = line + (byte | hi).toString( 16 ) + ' ';
+
+                    cr++;
+                    if( cr % 8 === 0 )
+                    {
+                        addr += 8;
+                        if( cr < 0x28 )
+                            line = line + '\n' + addr.toString( 16 ) + ":";
+                    }
+
+                    byte   = 0;
+                    bit    = 1;
+                }
+            }
+            text = text + line + '\n';
+        }
+
+        console.log( text );
+        var log = document.getElementById( 'log' );
+        log.innerHTML = text;
+    };
+    pic.src = 'silhouette_2.png';
+}
+ </script>
+ </head>
+     <body onload="main();">
+        <canvas id='canvas' width="280" height="192"></canvas>
+        <pre id='log'></pre>
+     </body>
+ </html>
