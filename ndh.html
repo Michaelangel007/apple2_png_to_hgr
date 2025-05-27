@@ -14,6 +14,7 @@ Copyleft 2018 Michaelangel007
     Web Browser:
         http://localhost:8000/pic2hgr.html
 */
+"use strict";
 function main()
 {
     var canvas  = document.getElementById( 'canvas' );
@@ -31,17 +32,17 @@ function main()
 
         var addr;
         var byte   = 0;
-        var bit    = 1;
+        var bit    = 0;
+        var shift  = 0; // 14 pixels -> 2 bytes
         var line   = "";
         var text   = "";
         var cr     = 0;
-        var phase  = 0;
         var hi     = 0;
 
-// "Mr. Robot" -> "Mr. Crack"
-// X=$00 .. $0D (14 bytes)
-        var y0 = 0;
-        var y1 = 44;
+        var y0 = 0, y1 = 192;
+        var x0 = 0, x1 = 280;
+
+        var ON = 192; // RGB threshold if bit is on
 
         console.log( "image.size = " + texels.length );
         console.log( "image.w = " + pic.width );
@@ -52,49 +53,67 @@ function main()
             addr  = 0x2000 + ((y/64)&63)*0x28 + (y%8)*0x400 + ((y/8)&7)*0x80;
             line  = addr.toString( 16 ) + ":";
             cr    = 0;
-            phase = 0;
-
-            for( var x = 0; x < 280; x++ )
+            hi    = 0;
+            for( var x = x0; x < x1; x++ )
             {
-                j = (y*w + x)*4;
-                r = texels[ j + 0 ];
-                g = texels[ j + 1 ];
-                b = texels[ j + 2 ];
+                var j = (y*w + x)*4;
+                var r = texels[ j + 0 ];
+                var g = texels[ j + 1 ];
+                var b = texels[ j + 2 ];
+                var k = ((r + g + b) / 3)|0;
 
-                if( b >= 220 )
-                    byte |= bit;
-
-                bit <<= 1;
-                bit &= 0x7F;
-
-                if( !bit ) // over-flow to next byte?
+                // Map rgb to HCOLOR hex bytes
+                //  0 = $00 Black
+                //  1 = $01 Magenta
+                //  2 = $02 Green
+                //  3 = $03 White
+                // Ignore
+                //  5 = $82 Orange
+                //  6 = $81 Teal
+                if (x & 1) // odd -> green / orange
                 {
-                    //hi   = ((g > 232) && (b < g) && (r < g)) ? 0 : 0x80;
-                    hi = 0x80; // blue
-                    // hi = 0x00; // green
-
-                    line = line + (byte | hi).toString( 16 ) + ' ';
-
+                    if (k > ON) bit |= (1 << shift); // white
+                    else
+                    if (g > ON) bit |= (1 << shift); // green
+                }
+                else // even -> magenta / sky blue
+                {
+                    if (k > ON)               bit |= (1 << shift); // white
+                    else
+                    if ((r > ON) && (b > ON)) bit |= (1 << shift); // magenta
+                }
+                shift++;
+                if (shift == 14) // have 2 bytes
+                {
+                    byte  = bit & 0x7F;
+                    hi    = (bit & 0x80);
+                    bit >>= 7;
+                    line = line + ('0' + (byte & 0xFF).toString( 16 )).slice(-2) + ' ';
                     cr++;
-                    if( cr % 8 === 0 )
+
+                    byte  = bit & 0x7F;
+                    hi    = (bit & 0x80);
+                    bit >>= 7;
+                    line = line + ('0' + (byte & 0xFF).toString( 16 )).slice(-2) + ' ';
+                    cr++;
+
+                    if (cr % 8 === 0)
                     {
                         addr += 8;
                         if( cr < 0x28 )
                             line = line + '\n' + addr.toString( 16 ) + ":";
                     }
-
-                    byte   = 0;
-                    bit    = 1;
+                    shift = 0;
                 }
             }
             text = text + line + '\n';
         }
-
         console.log( text );
         var log = document.getElementById( 'log' );
         log.innerHTML = text;
     };
     pic.src = 'silhouette_2.png';
+    //pic.src = 'test_green.png';
 }
  </script>
  </head>
